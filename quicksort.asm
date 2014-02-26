@@ -54,6 +54,7 @@ swap:	lw	$t4,($t0)	#Do $t4 ulož hodnotu na kterou ukazuje levé ukazovátko
 	addi	$t0,$t0,4	#Posuň levé ukazovátko
 	sw	$t4,($t1)	#Hodnotu z $t4 ulož tam kam ukazuje pravé ukazovátko
 	j	sloop		#Pokračuj v sortovacím cyklu (sloop)
+	nop
 
 endswp:	lw	$t4,($t0)	#
 	sw	$t3,($t0)	#

@@ -1,0 +1,268 @@
+\documentclass[11pt, titlepage]{article}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage[utf8]{inputenc}
+\usepackage[czech]{babel}
+\usepackage{a4wide}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{lineno}
+\usepackage{soul}
+\usepackage{subfig}
+\usepackage{tikz}
+\usepackage{textcomp}
+\usepackage{placeins}
+\usepackage{threeparttable}
+\usepackage{slashbox}
+\usepackage{listings}
+\usepackage{mips}
+\usepackage{framed}
+\usepackage{url}
+
+\author{Martin Zadražil}
+\title{Semestralni prace z~UPA}
+
+\begin{document}
+
+\begin{titlepage}
+	\begin{center}
+		\includegraphics[width=10cm]{zculogo.ps}
+		\vskip 5cm
+		{\huge \bfseries Semestralni prace z~UPA} \\
+		\vskip 1cm
+		{ \large Martin Zadražil} \\
+		{ \large \today }
+	\end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Zadání}
+
+Úkolem je naprogramovat v asembleru MIPS jednoduchou úlohu a odladit ji s použitím simulatoru SPIM.
+Dale musi byt v přilozenem výpisu (listing) programu vyznačeny alespon tři různe pseudoinstrukce a musí zde být uvedeno, jakymi strojovymi instrukcemi je prekladač nahradil.
+Kromě toho musi být v programu vyznačeno alespoň jedno místo, kde potenciálně vzniká datový hazard a jedno místo, kde se potencialne může projevit (resp. kde se projevuje) zpožděné čtení dat z paměti.
+
+\subsection{Vybrana úloha}
+
+Vybranou úlohou pro implementaci v asembleru MIPS je vzestupné řazení celých čísel metodou quicksort.
+
+\section{Řešení}
+
+Algoritmus quickosrt je obecně známý. Proto se zaměřím pouze na některé detaily mé implementace:
+\begin{itemize}
+\item Jako pivot se vybírá prvek, který je na konci řazené posloupnosti.
+\item Rekurzivní volání je nahrazeno zásobníkem, do kterého se po průchodu uloží meze podposloupností, se kterými se následně dále pracuje.
+\end{itemize}
+
+\subsection{Pseudoinstrukce}
+
+Pseudoinstrukce rozšiřují instrukční soubor, který je dostupný programátorovi. Nahrazují se jednou nebo více instrukcemi ve zdrojovém kódu. Pseudoinstrukce jsou v kódu vyznačeny zelenou barvou.
+
+\definecolor{lightred}{rgb}{0.5,0.1,0.1}   % Light Redish Color
+\lstset{language=[mips]Assembler,
+ basicstyle=\ttfamily\footnotesize\color{black}\bfseries,
+ keywordstyle=\ttfamily\footnotesize\color{lightred},
+ identifierstyle=\ttfamily\footnotesize\color{darkgray}\bfseries, 
+ commentstyle=\ttfamily\footnotesize\color{brown}\textit,
+ stringstyle=\ttfamily\footnotesize\color{blue},
+ showstringspaces=false,
+ }
+
+\begin{table}[h!]
+\centering
+\caption{Přsevod pseudoinstrukcí}
+\begin{tabular}{l|l}\\
+Pseudoinstrukce & Nativní instrukce \\ 
+\hline
+
+\begin{lstlisting}
+la $t7, list
+\end{lstlisting} &
+\begin{lstlisting}
+lui $15, 4097 [list]
+\end{lstlisting}\\
+
+\hline
+
+\begin{lstlisting}
+li $v0, 5
+\end{lstlisting} & 
+\begin{lstlisting}
+ori $2, $0, 5
+\end{lstlisting}\\
+
+\hline
+
+\begin{lstlisting}
+blt $t2,$t3,swap
+\end{lstlisting} & 
+\begin{lstlisting}
+slt $1, $10, $11
+bne $1, $0, 12 [swap-0x004000bc] 
+\end{lstlisting}\\
+
+\end{tabular}
+\end{table}
+
+
+\subsection{Datovy hazard}
+Instrukce je závislá na výsledcích předcházejících nedokončených operací.
+
+\subsubsection{Zpožděné čtení dat z paměti}
+
+Data jsou v registru k dispozici po provedení dvou instrukcí. V programu vyřešeno přidáním instrukcí \texttt{nop} nebo přeházením pořadí operací. V kódu je vyznačeno žlutě.
+
+\subsubsection{Zpoždění skokových instrukcí}
+
+Provádí se jedna instrukce za skokovou instrukcí. Řešením je přidání instrukce \texttt{nop} za skokovou instrukci. V kódu je vyznačeno červeně.
+
+\section{Zdrojový kód programu}
+
+\begin{lstlisting}
+	.data
+list:	.space 40
+stack:	.space 40
+NL:	.asciiz "\n"
+prompt:	.asciiz "Zadejte posloupnost max. deseti celych cisel ukoncenych 0:\n"
+
+	.text
+	.globl	main
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Green}] 
+main:	la	$t7, list	#V $t7 bude adresa prvniho prvku pole
+	la	$t8, list	#V $t8 bude adresa posledniho prvku pole 
+	la	$t5, stack	#V $t5 bude adresa vrcholu zasobniku
+	la	$t9, stack	#V $t9 bude adresa zacatku zasobniku, jestlize je $t5 = $t9 zasobnik je prazdny
+	la	$a0,prompt	#Do $a0 znak konce radku
+	li	$v0,4		#Do $v0 cislo systemove sluzby 4 (print string)
+\end{lstlisting}
+\begin{lstlisting}
+	syscall			#Zavolani sluzby ve $v0
+
+rloop:	li	$v0,5		#Do $v0 cislo systemove sluzby 5 (read int)
+	syscall			#Zavolani sluzby ve $v0
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	beq	$v0,0,sstart	#Pokud se hodnota ve $v0 rovna 0, skoc do bloku sstart
+	nop
+\end{lstlisting}
+\begin{lstlisting}
+	sw	$v0,($t8)	#Uloz hodnotu z $v0 na adresu $t8
+	addi	$t8,$t8,4	#Zvetsi $t8 o 4 bajty (velikost datoveho typu word), $t8 nyni ukazuje na druhy prvek pole
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	j	rloop		#Skoc na zacatek cteciho cyklu (rloop)
+	nop
+\end{lstlisting}
+\begin{lstlisting}
+sstart:	addi	$t8,$t8,-4	#Na konci pole nyni mame 0, proto posuneme ukazatel $t8 na jednu bunku doleva
+	sw	$t7,($t5)	#Na vrchol zasobniku vloz adresu prvniho prvku pole
+	addi	$t5,$t5,4	#Posun ukazatel na vrchol zasobniku o bunku doprava
+	sw	$t8,($t5)	#Na vrchol zasobniku vloz vloz adresu posledniho prvku pole
+	addi	$t5,$t5,4	#Posun ukazatel na vrchol zasobniku o bunku doprava
+
+sort:	lw	$s1,-4($t5)	#Do $s1 uloz pravou mez pole z vrcholu zasobniku
+	lw	$t0,-8($t5)	#Do $t0 uloz levou mez pole z vrcholu zasobniku, to bude leve ukazovatko
+	lw	$t1,-8($t5)	#Do $t1 uloz levou mez pole z vrcholu zasobniku, to bude prave ukazovatko
+	lw	$s0,-8($t5)	#Do $s0 uloz levou mez pole z vrcholu zasobniku
+	addi	$t5,$t5,-8	#Posun ukazatel na vrchol zasobniku o dve bunky doleva, protoze jsme z nej prave dve hodnoty precetli
+	lw	$t3,($s1)	#Do $t3 uloz hodnotu prvku na prave mezi, to bude pivot
+	addi	$t1,$t1,-4	#Sniz prave ukazovatko
+
+sloop:	addi	$t1,$t1,4	#Zvys prave ukazovatko
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	bge	$t1,$s1,endswp	#Ukazuje-li prave ukazovatko na pravou mez, jsme na konci posloupnosti, skoc na endswp
+	nop
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Yellow}]   
+	lw	$t2,($t1)	#Do $t2 uloz hodnotu na kterou ukazuje prave ukazovatko
+	nop
+	nop
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	blt	$t2,$t3,swap	#Je-li hodnota v $t2 mensi nez pivot, skoc na swap
+	nop
+	j	sloop		#Skoc na zacatek cyklu
+	nop
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Yellow}]   
+swap:	lw	$t4,($t0)	#Do $t4 uloz hodnotu na kterou ukazuje leve ukazovatko
+	sw	$t2,($t0)	#Hodnotu, na kterou ukazuje prave ukazovatko uloz tam kam ukazuje leve ukazovatko
+	addi	$t0,$t0,4	#Posun leve ukazovatko
+	sw	$t4,($t1)	#Hodnotu z $t4 uloz tam kam ukazuje prave ukazovatko
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	j	sloop		#Pokracuj v sortovacim cyklu (sloop)
+	nop
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Yellow}] 
+endswp:	lw	$t4,($t0)	#
+	sw	$t3,($t0)	#
+	addi	$t0,$t0,-4	#Sniz leve ukazovatko o jedna - to bude nova prava mez
+	sw	$t4,($t1)	#Prohod pivot s prvkem na ktery ukazuje leve ukazovatko
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	blt	$s0,$t0,lins	#Jestlize se leva mez nerovna prave, uloz meze do zasobniku (lins)
+	nop
+\end{lstlisting}
+\begin{lstlisting}
+bckswp:	addi	$t0,$t0,8	#Zvys leve ukazovatko - to bude nova leva mez
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	blt	$t0,$s1,rins	#Jestlize se leva mez nerovna prave, uloz meze do zasobniku (rins)
+	nop
+	ble	$t5,$t9,wloop	#Je-li zasobnik prazdny, vypis vysledky (wloop)
+	nop
+	j	sort		#Pokracuj v sortovacim cyklu (sloop)
+	nop
+\end{lstlisting}
+\begin{lstlisting}
+
+lins:	sw	$s0,($t5)	#Ulozi do zasobniku meze leve podposloupnosti 
+	sw	$t0,4($t5)
+	addi	$t5,$t5,8
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	j	bckswp
+	nop
+\end{lstlisting}
+\begin{lstlisting}
+
+rins:	sw	$t0,($t5)	#Ulozi do zasobniku meze prave podposloupnosti 
+	sw	$s1,4($t5)
+	addi	$t5,$t5,8
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	j	sort
+	nop
+\end{lstlisting}
+\begin{lstlisting}
+
+wloop:	bgt	$t7,$t8,end	#Pokud je $t7 rovno $t8, jsme na konci pole
+	lw	$a0,($t7)	#Obsah adresy $t7 do $a0
+	li	$v0,1		#Do $v0 cislo systemove sluzby 1 (print int)
+	syscall			#Zavolani sluzby ve $v0
+	la	$a0,NL		#Do $a0 znak konce radku
+	li	$v0,4		#Do $v0 cislo systemove sluzby 4 (print string)
+	syscall			#Zavolani sluzby ve $v0
+	addi	$t7,$t7,4	#Zvetsi $t7 o 4 bajty (velikost datoveho typu word), $t7 nyni ukazuje na druhy prvek pole
+\end{lstlisting}
+\begin{lstlisting}[backgroundcolor=\color{Red}]   
+	j	wloop		#Skoc na zacatek zapisovaciho cyklu (wloop)
+
+end:	nop
+	j	$ra
+	nop
+\end{lstlisting}
+
+\section{Závěr}
+
+Úloha byla řešena dle zadání. Program musel vyhovět nastavení simulátoru Enable Delayed Branches a Enable Delayed Loads. Toho bylo dosaženo změnou pořadí některých instrukcí a doplněním prázdných instrukcí.
+
+Jako editor zdrojového kódu jsem použil \textit{gedit}. Program byl testován a odladěn v prostředí \textit{qtSpim} a verzován systémem \textit{Git}. Zdrojové kódy jsou též dostpné na adrese \url{https://github.com/claryaldringen/MIPS-QuickSort/blob/master/quicksort.asm}.
+
+\end{document}
